@@ -1,0 +1,250 @@
+@import "tailwindcss";
+
+/* ── Theme variables ── */
+:root {
+  --bg: #f2efe8;
+  --surface: #faf8f4;
+  --ink: #1a1816;
+  --ink-dim: #8a8580;
+  --ink-muted: #c5c0b8;
+  --accent: #c9702e;
+  --accent-deep: #b05c22;
+  --accent-light: #f5e8dd;
+  --border: #dcd5cc;
+  --border-light: #e8e2da;
+  --divider: #e8e2da;
+  --shadow: rgba(0, 0, 0, 0.04);
+  --shadow-strong: rgba(0, 0, 0, 0.1);
+  --grid-color: rgba(0, 0, 0, 0.025);
+  --radius: 8px;
+  --radius-sm: 4px;
+  --font-heading: "Playfair Display", Georgia, serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+}
+
+[data-theme="dark"] {
+  --bg: #111113;
+  --surface: #1c1b1e;
+  --ink: #eae7e0;
+  --ink-dim: #7d7b7a;
+  --ink-muted: #474649;
+  --accent: #c9702e;
+  --accent-deep: #a85a1f;
+  --accent-light: #2a1d14;
+  --border: #2a292c;
+  --border-light: #1f1e21;
+  --divider: #1f1e21;
+  --shadow: rgba(0, 0, 0, 0.3);
+  --shadow-strong: rgba(0, 0, 0, 0.55);
+  --grid-color: rgba(255, 255, 255, 0.012);
+}
+
+/* ── Base ── */
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 2.5rem 1rem 4rem;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+  /* transition removed — theme toggle sets data-theme synchronously before paint, so no flash to smooth over */
+  margin: 0;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.5;
+  background-image:
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+#root {
+  width: 100%;
+  max-width: 640px;
+  position: relative;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-muted);
+}
+
+/* ── Animations ── */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@media (max-width: 520px) {
+  body {
+    padding: 1.25rem 0.75rem 3rem;
+  }
+}
+
+/* ── Component styles ── */
+
+/* Status bar nodes (StatusBar.tsx) */
+.status-node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transition: all 0.12s;
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-body);
+  color: var(--ink-dim);
+  text-transform: uppercase;
+}
+.status-node:hover { background: var(--border-light); }
+.status-node .sd {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.45rem; font-weight: 700; line-height: 1;
+  transition: all 0.2s;
+}
+.status-node.current {
+  color: var(--ink);
+  font-weight: 600;
+  text-transform: none;
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  font-style: italic;
+  letter-spacing: 0;
+}
+.status-node.current .sd {
+  width: 12px; height: 12px;
+  box-shadow: 0 0 0 2px rgba(201, 112, 46, 0.2);
+}
+.status-node.past { opacity: 0.5; }
+.status-node.past:hover { opacity: 0.75; }
+.status-node.future .sd { opacity: 0.3; }
+
+/* Todo item drag states */
+.todo-item.dragging {
+  opacity: 0.3 !important;
+  border-color: var(--border) !important;
+}
+.todo-item.drag-over {
+  box-shadow: 0 -2px 0 0 var(--accent), 0 1px 3px var(--shadow) !important;
+}
+
+/* Action buttons (edit/delete in TodoItem) */
+.edit-btn, .delete-btn, .rm-status {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  transition: all 0.12s;
+  color: var(--ink-muted);
+  line-height: 1;
+}
+.edit-btn:hover { background: var(--accent-light); color: var(--accent); }
+.delete-btn:hover { background: rgba(201, 112, 46, 0.15); color: var(--accent); }
+.rm-status:hover { color: var(--accent); background: var(--accent-light); }
+
+/* Icon buttons (ProjectBar action buttons) */
+.icon-btn {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  color: var(--ink-dim);
+}
+.icon-btn:hover {
+  border-color: var(--ink-muted);
+  color: var(--ink);
+  background: var(--surface);
+}
+
+/* Check icon */
+.check-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem; height: 1rem;
+  border-radius: 50%;
+  font-size: 0.5rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Checkbox */
+.cb {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 2px;
+  transition: transform 0.12s;
+}
+.cb:hover { transform: scale(1.15); }
+.cb:checked + .text {
+  text-decoration: line-through;
+  color: var(--ink-muted);
+}
