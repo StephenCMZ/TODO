@@ -21,6 +21,7 @@ export function getDb(): Database.Database {
 
     createSchema()
     migrateProjects()
+  migrateTodos()
   }
   return db
 }
@@ -95,6 +96,13 @@ function migrateProjects() {
   if (!columns.some((c: any) => c.name === "user_id")) {
     db.exec("ALTER TABLE projects ADD COLUMN user_id TEXT")
     db.exec("CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id)")
+  }
+}
+
+function migrateTodos() {
+  const columns = db.prepare("PRAGMA table_info(todos)").all() as any[]
+  if (!columns.some((c: any) => c.name === "statuses")) {
+    db.exec("ALTER TABLE todos ADD COLUMN statuses TEXT DEFAULT NULL")
   }
 }
 
@@ -350,6 +358,14 @@ export function setTodoStatus(id: string, statusIndex: number) {
   db.prepare("UPDATE todos SET status_index = ? WHERE id = ?").run(statusIndex, id)
 }
 
+export function updateTodoStatuses(id: string, statuses: string[] | null) {
+  if (statuses === null) {
+    db.prepare("UPDATE todos SET statuses = NULL WHERE id = ?").run(id)
+  } else {
+    db.prepare("UPDATE todos SET statuses = ? WHERE id = ?").run(JSON.stringify(statuses), id)
+  }
+}
+
 export function reorderTodo(id: string, sortOrder: number) {
   db.prepare("UPDATE todos SET sort_order = ? WHERE id = ?").run(sortOrder, id)
 }
@@ -364,11 +380,16 @@ export function toggleTodoDone(id: string) {
 export function clearDoneTodos(projectId: string) {
   const project = getProject(projectId)
   if (!project) return
-  if (project.statuses.length > 0) {
-    const lastIdx = project.statuses.length - 1
-    db.prepare("DELETE FROM todos WHERE project_id = ? AND status_index >= ?").run(projectId, lastIdx)
-  } else {
-    db.prepare("DELETE FROM todos WHERE project_id = ? AND status_index < 0").run(projectId)
+  const todos = listTodosRaw(projectId)
+  for (const t of todos) {
+    const statuses = t.statuses ? JSON.parse(t.statuses) : project.statuses
+    if (statuses.length > 0) {
+      if (t.status_index >= statuses.length - 1) {
+        db.prepare("DELETE FROM todos WHERE id = ?").run(t.id)
+      }
+    } else if (t.status_index < 0) {
+      db.prepare("DELETE FROM todos WHERE id = ?").run(t.id)
+    }
   }
 }
 
@@ -462,5 +483,6 @@ function rowToTodo(row: any) {
     statusIndex: row.status_index,
     created: row.created,
     sortOrder: row.sort_order,
+    statuses: row.statuses ? JSON.parse(row.statuses) : undefined,
   }
 }

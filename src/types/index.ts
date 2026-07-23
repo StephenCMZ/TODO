@@ -28,6 +28,7 @@ export interface Todo {
   statusIndex: number
   created: number
   sortOrder: number
+  statuses?: string[]
 }
 
 export interface AppData {

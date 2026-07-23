@@ -53,15 +53,12 @@ async function apiDel(path: string): Promise<void> {
 
 // ── helpers ──
 
-function hasStatusNodes(projectId: string, state: AppData) {
-  const p = state.projects.find((pr) => pr.id === projectId)
-  return p && p.statuses && p.statuses.length > 0
-}
-
 export function isTodoDone(t: Todo, projectId: string, state: AppData) {
-  if (hasStatusNodes(projectId, state)) {
-    const p = state.projects.find((pr) => pr.id === projectId)
-    return p ? t.statusIndex >= p.statuses.length - 1 : false
+  const p = state.projects.find((pr) => pr.id === projectId)
+  if (!p) return false
+  const statuses = t.statuses ?? p.statuses
+  if (statuses.length > 0) {
+    return t.statusIndex >= statuses.length - 1
   }
   return t.statusIndex < 0
 }
@@ -81,6 +78,7 @@ type Action =
   | { type: "DELETE_TODO"; id: string }
   | { type: "RENAME_TODO"; id: string; text: string }
   | { type: "SET_TODO_STATUS"; id: string; statusIndex: number }
+  | { type: "SET_TODO_STATUSES"; id: string; statuses: string[] | undefined }
   | { type: "REORDER_TODO"; id: string; sortOrder: number }
   | { type: "CLEAR_DONE"; projectId: string }
 
@@ -164,6 +162,12 @@ function reducer(state: AppData, action: Action): AppData {
         todos: state.todos.map((t) => (t.id === action.id ? { ...t, statusIndex: action.statusIndex } : t)),
       }
 
+    case "SET_TODO_STATUSES":
+      return {
+        ...state,
+        todos: state.todos.map((t) => (t.id === action.id ? { ...t, statuses: action.statuses } : t)),
+      }
+
     case "REORDER_TODO":
       return {
         ...state,
@@ -173,16 +177,16 @@ function reducer(state: AppData, action: Action): AppData {
     case "CLEAR_DONE": {
       const project = state.projects.find((p) => p.id === action.projectId)
       if (!project) return state
-      if (project.statuses.length > 0) {
-        const lastIdx = project.statuses.length - 1
-        return {
-          ...state,
-          todos: state.todos.filter((t) => t.projectId !== action.projectId || t.statusIndex < lastIdx),
-        }
-      }
       return {
         ...state,
-        todos: state.todos.filter((t) => t.projectId !== action.projectId || t.statusIndex >= 0),
+        todos: state.todos.filter((t) => {
+          if (t.projectId !== action.projectId) return true
+          const statuses = t.statuses ?? project.statuses
+          if (statuses.length > 0) {
+            return t.statusIndex < statuses.length - 1
+          }
+          return t.statusIndex >= 0
+        }),
       }
     }
 
@@ -204,6 +208,7 @@ interface StoreContextValue {
   deleteTodo: (id: string) => Promise<void>
   renameTodo: (id: string, text: string) => Promise<void>
   setTodoStatus: (id: string, statusIndex: number) => Promise<void>
+  setTodoStatuses: (id: string, statuses: string[] | undefined) => Promise<void>
   reorderTodo: (id: string, sortOrder: number) => Promise<void>
   toggleTodoDone: (id: string) => Promise<void>
   clearDone: (projectId: string) => Promise<void>
@@ -297,6 +302,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_TODO_STATUS", id, statusIndex })
   }, [])
 
+  const setTodoStatuses = useCallback(async (id: string, statuses: string[] | undefined) => {
+    await apiPut(`/todos/${id}/statuses`, { statuses: statuses ?? null })
+    dispatch({ type: "SET_TODO_STATUSES", id, statuses })
+  }, [])
+
   const reorderTodo = useCallback(async (id: string, sortOrder: number) => {
     await apiPut(`/todos/${id}/reorder`, { sortOrder })
     dispatch({ type: "REORDER_TODO", id, sortOrder })
@@ -325,6 +335,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         deleteTodo,
         renameTodo,
         setTodoStatus,
+        setTodoStatuses,
         reorderTodo,
         toggleTodoDone,
         clearDone,

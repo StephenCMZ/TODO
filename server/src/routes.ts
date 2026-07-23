@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express"
 import {
   listProjects, getProject, createProject, updateProject, deleteProject,
   listTodos, createTodo, getTodo, deleteTodoById, updateTodoText,
-  setTodoStatus, reorderTodo, toggleTodoDone, clearDoneTodos,
+  setTodoStatus, updateTodoStatuses, reorderTodo, toggleTodoDone, clearDoneTodos,
   getProjectMembers, addProjectMember, removeProjectMember, updateProjectMemberRole,
   listUsers,
 } from "./db"
@@ -76,6 +76,13 @@ router.put("/todos/:id/status", authMiddleware, requireProjectRole("edit"), (req
   const { statusIndex } = req.body
   if (statusIndex === undefined) return res.status(400).json({ error: "缺少状态索引" })
   setTodoStatus(req.params.id, statusIndex)
+  const todo = getTodo(req.params.id)
+  res.json(todo)
+})
+
+router.put("/todos/:id/statuses", authMiddleware, requireProjectRole("edit"), (req: Request, res: Response) => {
+  const { statuses } = req.body
+  updateTodoStatuses(req.params.id, statuses === undefined ? null : statuses)
   const todo = getTodo(req.params.id)
   res.json(todo)
 })

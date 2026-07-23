@@ -36,13 +36,15 @@ export function TodoList({
     const aDone = (() => {
       const p = state.projects.find((pr) => pr.id === a.projectId)
       if (!p) return false
-      if (p.statuses.length > 0) return a.statusIndex >= p.statuses.length - 1
+      const statuses = a.statuses ?? p.statuses
+      if (statuses.length > 0) return a.statusIndex >= statuses.length - 1
       return a.statusIndex < 0
     })()
     const bDone = (() => {
       const p = state.projects.find((pr) => pr.id === b.projectId)
       if (!p) return false
-      if (p.statuses.length > 0) return b.statusIndex >= p.statuses.length - 1
+      const statuses = b.statuses ?? p.statuses
+      if (statuses.length > 0) return b.statusIndex >= statuses.length - 1
       return b.statusIndex < 0
     })()
     if (project.autoSortDone !== false && aDone !== bDone) return aDone ? 1 : -1

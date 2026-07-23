@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 import type { Todo, Project } from "../types"
-import { isTodoDone } from "../store/todoStore"
+import { isTodoDone, useStore } from "../store/todoStore"
 import { StatusBar } from "./StatusBar"
 
 interface Props {
@@ -28,9 +28,9 @@ export function TodoItem({
   onToggleDone,
   onStatusClick,
 }: Props) {
-  const [editValue, setEditValue] = useState(todo.text)
-  const editRef = useRef<HTMLInputElement>(null)
-  const isMulti = project.statuses.length > 0
+  const { setTodoStatuses } = useStore()
+  const effectiveStatuses = todo.statuses ?? project.statuses
+  const isMulti = effectiveStatuses.length > 0
   const done = isTodoDone(todo, project.id, { projects: [project], todos: [], defaultProjectId: "" } as any)
   const timeStr =
     project.showTime !== false
@@ -43,6 +43,11 @@ export function TodoItem({
       : ""
   const isViewOnly = project.myRole === "view"
 
+  const [editValue, setEditValue] = useState(todo.text)
+  const [editStatuses, setEditStatuses] = useState<string[]>(effectiveStatuses)
+  const [explicitCheckbox, setExplicitCheckbox] = useState(false)
+  const editRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     if (isEditing && editRef.current) {
       editRef.current.focus()
@@ -52,14 +57,56 @@ export function TodoItem({
 
   useEffect(() => {
     setEditValue(todo.text)
+    setEditStatuses(effectiveStatuses)
+    setExplicitCheckbox(todo.statuses !== undefined && todo.statuses.length === 0)
   }, [todo.text, isEditing])
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") {
-      const val = editValue.trim()
-      if (val) onSaveEdit(todo.id, val)
+  function handleSave(val: string) {
+    if (!val) return
+    if (explicitCheckbox) {
+      setTodoStatuses(todo.id, [])
+    } else {
+      const cleaned = editStatuses.map((s) => s.trim()).filter(Boolean)
+      const isCustom = JSON.stringify(cleaned) !== JSON.stringify(project.statuses)
+      setTodoStatuses(todo.id, isCustom && cleaned.length > 0 ? cleaned : undefined)
     }
-    if (e.key === "Escape") onCancelEdit()
+    onSaveEdit(todo.id, val)
+  }
+
+  function handleCancel() {
+    setEditStatuses(effectiveStatuses)
+    setExplicitCheckbox(false)
+    onCancelEdit()
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") handleSave(editValue.trim())
+    if (e.key === "Escape") handleCancel()
+  }
+
+  function switchToCheckbox() {
+    setEditStatuses([])
+    setExplicitCheckbox(true)
+  }
+
+  function addStatus() {
+    setEditStatuses([...editStatuses, ""])
+    if (explicitCheckbox) setExplicitCheckbox(false)
+  }
+
+  function removeStatus(idx: number) {
+    setEditStatuses(editStatuses.filter((_, i) => i !== idx))
+  }
+
+  function updateStatus(idx: number, value: string) {
+    const next = [...editStatuses]
+    next[idx] = value
+    setEditStatuses(next)
+  }
+
+  function resetStatuses() {
+    setEditStatuses(project.statuses.length > 0 ? [...project.statuses] : [])
+    setExplicitCheckbox(false)
   }
 
   const borderColor = done ? "transparent" : project.color
@@ -86,17 +133,90 @@ export function TodoItem({
             className="flex-1 rounded-[var(--radius-sm)] border border-[var(--accent)] bg-[var(--surface)] px-[0.6rem] py-[0.35rem] font-[var(--font-body)] text-[0.875rem] text-[var(--ink)] shadow-[0_0_0_2px_rgba(201,112,46,0.12)] outline-none"
           />
           <div className="flex shrink-0 gap-[0.125rem]">
-            <button onClick={() => { const val = editValue.trim(); if (val) onSaveEdit(todo.id, val) }} className="edit-btn" title="保存">
+            <button
+              onClick={() => handleSave(editValue.trim())}
+              className="edit-btn"
+              title="保存"
+            >
               &#x1F4BE;
             </button>
-            <button onClick={onCancelEdit} className="delete-btn" title="取消">
+            <button onClick={handleCancel} className="delete-btn" title="取消">
               &#10005;
             </button>
           </div>
         </div>
-        {isMulti && (
+
+        {editStatuses.length > 0 && !explicitCheckbox && (
+          <div className="mt-2 border-t border-[var(--border-light)] pt-2">
+            <div className="mb-1 text-[0.65rem] font-medium text-[var(--ink-muted)]">
+              状态节点
+            </div>
+            <div className="flex flex-wrap items-center gap-1">
+              {editStatuses.map((s, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-0 rounded-[4px] border border-[var(--border-light)] bg-[var(--surface)] pl-2"
+                >
+                  <input
+                    value={s}
+                    onChange={(e) => updateStatus(i, e.target.value)}
+                    placeholder={`状态 ${i + 1}`}
+                    className="w-16 bg-transparent py-1 text-[0.7rem] text-[var(--ink)] outline-none"
+                  />
+                  <button
+                    onClick={() => removeStatus(i)}
+                    className="flex h-full items-center px-1 text-[0.55rem] text-[var(--ink-dim)] hover:text-red-500"
+                  >
+                    &#10005;
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className={`flex flex-wrap items-center gap-1 ${editStatuses.length > 0 ? "mt-1" : "mt-2"}`}>
+          {explicitCheckbox && editStatuses.length === 0 ? (
+            <span className="flex items-center gap-1 rounded-[4px] px-2 py-1 text-[0.65rem] text-[var(--ink-muted)]">
+              &#x2611; 简单勾选模式
+            </span>
+          ) : (
+            <button
+              onClick={addStatus}
+              className="flex items-center gap-1 rounded-[4px] border border-dashed border-[var(--border-light)] px-2 py-1 text-[0.65rem] text-[var(--ink-dim)] hover:text-[var(--accent)]"
+            >
+              + {editStatuses.length === 0 ? "添加状态节点" : "添加"}
+            </button>
+          )}
+          {!explicitCheckbox && (todo.statuses || (project.statuses.length > 0 && editStatuses.length !== project.statuses.length)) && (
+            <button
+              onClick={resetStatuses}
+              className="rounded-[4px] border border-[var(--border-light)] px-2 py-1 text-[0.6rem] text-[var(--ink-dim)] hover:text-[var(--ink)]"
+            >
+              &#8635; 重置为项目默认
+            </button>
+          )}
+          {project.statuses.length > 0 && (todo.statuses || effectiveStatuses.length > 0) && !explicitCheckbox && (
+            <button
+              onClick={switchToCheckbox}
+              className="cursor-pointer border-none bg-transparent px-[0.5rem] py-[0.25rem] font-[var(--font-body)] text-[0.6875rem] text-[var(--ink-muted)] underline decoration-[var(--border)] underline-offset-3 transition-colors duration-[0.12s] hover:text-[var(--accent)] hover:decoration-[var(--accent-light)]"
+            >
+              切换简单勾选模式
+            </button>
+          )}
+          {explicitCheckbox && (
+            <button
+              onClick={addStatus}
+              className="flex items-center gap-1 rounded-[4px] border border-dashed border-[var(--border-light)] px-2 py-1 text-[0.65rem] text-[var(--ink-dim)] hover:text-[var(--accent)]"
+            >
+              + 重新添加状态节点
+            </button>
+          )}
+        </div>
+
+        {editStatuses.length > 0 && !explicitCheckbox && (
           <StatusBar
-            statuses={project.statuses}
+            statuses={editStatuses}
             projectColor={project.color}
             currentIndex={todo.statusIndex}
             todoId={todo.id}
@@ -128,9 +248,14 @@ export function TodoItem({
         )}
 
         {isMulti ? (
-          <span className={`flex-1 text-[0.9375rem] leading-relaxed tracking-[0.01em] ${done ? "text-[var(--ink-muted)] line-through" : "text-[var(--ink)]"}`}>
+          <span
+            className={`flex-1 text-[0.9375rem] leading-relaxed tracking-[0.01em] ${done ? "text-[var(--ink-muted)] line-through" : "text-[var(--ink)]"}`}
+          >
             {done && (
-              <span className="check-icon mr-[0.35rem] inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[0.5rem] font-bold" style={{ background: project.color, color: "#fff" }}>
+              <span
+                className="check-icon mr-[0.35rem] inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[0.5rem] font-bold"
+                style={{ background: project.color, color: "#fff" }}
+              >
                 &#10003;
               </span>
             )}
@@ -146,7 +271,9 @@ export function TodoItem({
               style={{ accentColor: project.color, cursor: isViewOnly ? "default" : "pointer" }}
               readOnly={isViewOnly}
             />
-            <span className={`flex-1 text-[0.9375rem] leading-relaxed tracking-[0.01em] break-words ${done ? "text-[var(--ink-muted)] line-through" : "text-[var(--ink)]"}`}>
+            <span
+              className={`flex-1 break-words text-[0.9375rem] leading-relaxed tracking-[0.01em] ${done ? "text-[var(--ink-muted)] line-through" : "text-[var(--ink)]"}`}
+            >
               {todo.text}
             </span>
           </>
@@ -172,7 +299,7 @@ export function TodoItem({
 
       {isMulti && (
         <StatusBar
-          statuses={project.statuses}
+          statuses={effectiveStatuses}
           projectColor={project.color}
           currentIndex={todo.statusIndex}
           todoId={todo.id}
