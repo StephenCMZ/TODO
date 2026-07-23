@@ -103,6 +103,7 @@ function reducer(state: AppData, action: Action): AppData {
         showFilterBar: true,
         autoSortDone: true,
         showIndex: true,
+        autoCompleteParent: true,
       }
       return { ...state, projects: [...state.projects, p] }
     }
@@ -148,7 +149,7 @@ function reducer(state: AppData, action: Action): AppData {
       return { ...state, todos: [...state.todos, action.todo] }
 
     case "DELETE_TODO":
-      return { ...state, todos: state.todos.filter((t) => t.id !== action.id) }
+      return { ...state, todos: state.todos.filter((t) => t.id !== action.id && t.parentId !== action.id) }
 
     case "RENAME_TODO":
       return {
@@ -177,15 +178,27 @@ function reducer(state: AppData, action: Action): AppData {
     case "CLEAR_DONE": {
       const project = state.projects.find((p) => p.id === action.projectId)
       if (!project) return state
+      // Collect IDs of done todos that will be removed
+      const doneIds = state.todos
+        .filter((t) => {
+          if (t.projectId !== action.projectId) return false
+          const statuses = t.statuses ?? project.statuses
+          if (statuses.length > 0) return t.statusIndex >= statuses.length - 1
+          return t.statusIndex < 0
+        })
+        .map((t) => t.id)
       return {
         ...state,
         todos: state.todos.filter((t) => {
           if (t.projectId !== action.projectId) return true
           const statuses = t.statuses ?? project.statuses
           if (statuses.length > 0) {
-            return t.statusIndex < statuses.length - 1
+            if (t.statusIndex >= statuses.length - 1) return false
+          } else {
+            if (t.statusIndex < 0) return false
           }
-          return t.statusIndex >= 0
+          if (t.parentId && doneIds.includes(t.parentId)) return false
+          return true
         }),
       }
     }
@@ -204,7 +217,7 @@ interface StoreContextValue {
   addProject: (name: string, color: string, statuses: string[]) => Promise<string>
   updateProject: (id: string, name: string, color: string, statuses: string[], settings: ProjectSettings) => Promise<void>
   deleteProject: (id: string) => Promise<void>
-  addTodo: (projectId: string, text: string) => Promise<void>
+  addTodo: (projectId: string, text: string, parentId?: string) => Promise<void>
   deleteTodo: (id: string) => Promise<void>
   renameTodo: (id: string, text: string) => Promise<void>
   setTodoStatus: (id: string, statusIndex: number) => Promise<void>
@@ -270,6 +283,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         showFilterBar: settings.showFilterBar,
         autoSortDone: settings.autoSortDone,
         showIndex: settings.showIndex,
+        autoCompleteParent: settings.autoCompleteParent,
       })
       dispatch({ type: "UPDATE_PROJECT", id, name, color, statuses, settings })
     },
@@ -281,9 +295,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "DELETE_PROJECT", id })
   }, [])
 
-  const addTodo = useCallback(async (projectId: string, text: string) => {
+  const addTodo = useCallback(async (projectId: string, text: string, parentId?: string) => {
     const id = genId()
-    const todo = await apiPost<Todo>("/todos", { id, projectId, text: text.trim() })
+    const todo = await apiPost<Todo>("/todos", { id, projectId, text: text.trim(), parentId })
     dispatch({ type: "ADD_TODO", todo })
   }, [])
 

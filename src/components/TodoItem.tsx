@@ -8,12 +8,14 @@ interface Props {
   project: Project
   index: number
   isEditing: boolean
+  editingId: string | null
   onStartEdit: (id: string) => void
   onSaveEdit: (id: string, text: string) => void
   onCancelEdit: () => void
   onDelete: (id: string) => void
   onToggleDone: (id: string) => void
   onStatusClick: (id: string, idx: number) => void
+  onAdd: (text: string, parentId: string) => void
 }
 
 export function TodoItem({
@@ -21,14 +23,16 @@ export function TodoItem({
   project,
   index,
   isEditing,
+  editingId,
   onStartEdit,
   onSaveEdit,
   onCancelEdit,
   onDelete,
   onToggleDone,
   onStatusClick,
+  onAdd,
 }: Props) {
-  const { setTodoStatuses } = useStore()
+  const { state, setTodoStatuses } = useStore()
   const effectiveStatuses = todo.statuses ?? project.statuses
   const isMulti = effectiveStatuses.length > 0
   const done = isTodoDone(todo, project.id, { projects: [project], todos: [], defaultProjectId: "" } as any)
@@ -48,6 +52,21 @@ export function TodoItem({
   const [explicitCheckbox, setExplicitCheckbox] = useState(false)
   const editRef = useRef<HTMLInputElement>(null)
 
+  // Subtask data
+  const subtasks = state.todos
+    .filter((t) => t.parentId === todo.id)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+  const [collapsed, setCollapsed] = useState(true)
+
+  // Subtask add input
+  const [showSubtaskInput, setShowSubtaskInput] = useState(false)
+  const [subtaskValue, setSubtaskValue] = useState("")
+  const subtaskInputRef = useRef<HTMLInputElement>(null)
+
+  // Subtask editing state
+  const [subtaskEditValue, setSubtaskEditValue] = useState("")
+  const subtaskEditRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     if (isEditing && editRef.current) {
       editRef.current.focus()
@@ -60,6 +79,23 @@ export function TodoItem({
     setEditStatuses(effectiveStatuses)
     setExplicitCheckbox(todo.statuses !== undefined && todo.statuses.length === 0)
   }, [todo.text, isEditing])
+
+  // Auto-focus subtask input when shown
+  useEffect(() => {
+    if (showSubtaskInput && subtaskInputRef.current) {
+      subtaskInputRef.current.focus()
+    }
+  }, [showSubtaskInput])
+
+  // Initialize subtask edit value when editing a subtask
+  useEffect(() => {
+    const editingSubtask = subtasks.find((st) => st.id === editingId)
+    if (editingSubtask) {
+      setSubtaskEditValue(editingSubtask.text)
+      // Auto-focus after state update
+      setTimeout(() => subtaskEditRef.current?.focus(), 0)
+    }
+  }, [editingId])
 
   function handleSave(val: string) {
     if (!val) return
@@ -110,6 +146,90 @@ export function TodoItem({
   }
 
   const borderColor = done ? "transparent" : project.color
+
+  // ── Subtask handlers ──
+
+  // When parent toggled, cascade to all subtasks
+  function handleToggleWithSubtasks() {
+    if (done) {
+      subtasks.forEach((st) => {
+        if (st.statusIndex < 0) onToggleDone(st.id)
+      })
+    } else {
+      subtasks.forEach((st) => {
+        if (st.statusIndex >= 0) onToggleDone(st.id)
+      })
+    }
+    onToggleDone(todo.id)
+  }
+
+  // When a subtask is toggled, sync parent state
+  function handleToggleSubtask(subtaskId: string) {
+    const wasDone = state.todos.find((t) => t.id === subtaskId)?.statusIndex === -1
+    onToggleDone(subtaskId)
+    if (wasDone) {
+      // Subtask was unchecked — also uncheck parent if it's done
+      if (done) {
+        if (effectiveStatuses.length > 0) {
+          onStatusClick(todo.id, 0)
+        } else {
+          onToggleDone(todo.id)
+        }
+      }
+      return
+    }
+    // Subtask was checked — auto-complete parent if all subtasks done
+    if (!project.autoCompleteParent || done) return
+    const allOthersDone = subtasks
+      .filter((st) => st.id !== subtaskId)
+      .every((st) => (st.statusIndex ?? 0) < 0)
+    if (allOthersDone) {
+      if (effectiveStatuses.length > 0) {
+        onStatusClick(todo.id, effectiveStatuses.length - 1)
+      } else {
+        onToggleDone(todo.id)
+      }
+    }
+  }
+
+  function handleAddSubtask() {
+    setShowSubtaskInput(true)
+    setCollapsed(false)
+  }
+
+  function handleSubtaskSubmit() {
+    const text = subtaskValue.trim()
+    if (!text) return
+    onAdd(text, todo.id)
+    setSubtaskValue("")
+    setShowSubtaskInput(false)
+  }
+
+  function handleSubtaskKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") handleSubtaskSubmit()
+    if (e.key === "Escape") {
+      setSubtaskValue("")
+      setShowSubtaskInput(false)
+    }
+  }
+
+  function handleSubtaskEditKeyDown(e: React.KeyboardEvent, stId: string) {
+    if (e.key === "Enter") {
+      const val = subtaskEditValue.trim()
+      if (val) onSaveEdit(stId, val)
+    }
+    if (e.key === "Escape") onCancelEdit()
+  }
+
+  function getSubtaskTime(created: number) {
+    if (project.showTime === false) return ""
+    return new Date(created).toLocaleString("zh-CN", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
 
   if (isEditing) {
     return (
@@ -247,6 +367,18 @@ export function TodoItem({
           </span>
         )}
 
+        {subtasks.length > 0 && (
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="flex cursor-pointer items-center justify-center border-none bg-transparent p-0 text-[0.65rem] text-[var(--ink-muted)] transition-transform duration-[0.15s] hover:text-[var(--ink)]"
+            title={collapsed ? "展开子任务" : "折叠子任务"}
+          >
+            <span style={{ display: "inline-block", transform: collapsed ? "rotate(0deg)" : "rotate(90deg)", transition: "transform 0.15s" }}>
+              &#x25B6;
+            </span>
+          </button>
+        )}
+
         {isMulti ? (
           <span
             className={`flex-1 text-[0.9375rem] leading-relaxed tracking-[0.01em] ${done ? "text-[var(--ink-muted)] line-through" : "text-[var(--ink)]"}`}
@@ -266,7 +398,7 @@ export function TodoItem({
             <input
               type="checkbox"
               checked={done}
-              onChange={isViewOnly ? undefined : () => onToggleDone(todo.id)}
+              onChange={isViewOnly ? undefined : handleToggleWithSubtasks}
               className="cb h-4 w-4 shrink-0 rounded-[2px] transition-transform duration-[0.12s]"
               style={{ accentColor: project.color, cursor: isViewOnly ? "default" : "pointer" }}
               readOnly={isViewOnly}
@@ -290,6 +422,11 @@ export function TodoItem({
             <button onClick={() => onStartEdit(todo.id)} className="edit-btn" title="编辑">
               &#9998;
             </button>
+            <button onClick={handleAddSubtask} className="edit-btn" title="添加子任务">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2z"/>
+              </svg>
+            </button>
             <button onClick={() => onDelete(todo.id)} className="delete-btn" title="删除">
               &#x1F5D1;
             </button>
@@ -303,8 +440,122 @@ export function TodoItem({
           projectColor={project.color}
           currentIndex={todo.statusIndex}
           todoId={todo.id}
-          onStatusClick={isViewOnly ? () => {} : onStatusClick}
+          onStatusClick={isViewOnly ? () => {} : (id, idx) => {
+            if (id === todo.id && idx >= effectiveStatuses.length - 1) {
+              subtasks.forEach((st) => {
+                if (st.statusIndex >= 0) onToggleDone(st.id)
+              })
+            }
+            onStatusClick(id, idx)
+          }}
         />
+      )}
+
+      {/* ── Subtasks section ── */}
+      {!collapsed && (subtasks.length > 0 || showSubtaskInput) && (
+        <div className="ml-5 mt-3 border-l-2 border-[var(--border-light)] pl-4">
+          {subtasks.map((st) => {
+            const stDone = st.statusIndex < 0
+
+            if (editingId === st.id) {
+              return (
+                <div key={st.id} className="mb-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={subtaskEditRef}
+                      value={subtaskEditValue}
+                      onChange={(e) => setSubtaskEditValue(e.target.value)}
+                      onKeyDown={(e) => handleSubtaskEditKeyDown(e, st.id)}
+                      maxLength={200}
+                      className="flex-1 rounded-[var(--radius-sm)] border border-[var(--accent)] bg-[var(--surface)] px-2 py-1 text-[0.8rem] text-[var(--ink)] outline-none"
+                    />
+                    <button
+                      onClick={() => {
+                        const val = subtaskEditValue.trim()
+                        if (val) onSaveEdit(st.id, val)
+                      }}
+                      className="edit-btn"
+                      title="保存"
+                    >
+                      &#x1F4BE;
+                    </button>
+                    <button onClick={onCancelEdit} className="delete-btn" title="取消">
+                      &#10005;
+                    </button>
+                  </div>
+                </div>
+              )
+            }
+
+            return (
+              <div key={st.id} className="mb-1.5 flex items-center gap-2 py-1">
+                <input
+                  type="checkbox"
+                  checked={stDone}
+                  onChange={isViewOnly ? undefined : () => handleToggleSubtask(st.id)}
+                  className="cb h-3.5 w-3.5 shrink-0"
+                  style={{ accentColor: project.color, cursor: isViewOnly ? "default" : "pointer" }}
+                  readOnly={isViewOnly}
+                />
+                <span
+                  className={`flex-1 break-words text-[0.825rem] leading-relaxed ${stDone ? "text-[var(--ink-muted)] line-through" : "text-[var(--ink)]"}`}
+                >
+                  {st.text}
+                </span>
+                {getSubtaskTime(st.created) && (
+                  <span className="shrink-0 text-[0.55rem] text-[var(--ink-muted)] [font-feature-settings:'tnum'_1]">
+                    {getSubtaskTime(st.created)}
+                  </span>
+                )}
+                {!isViewOnly && (
+                  <div className="flex shrink-0 gap-0.5">
+                    <button
+                      onClick={() => onStartEdit(st.id)}
+                      className="edit-btn"
+                      title="编辑"
+                    >
+                      &#9998;
+                    </button>
+                    <button
+                      onClick={() => onDelete(st.id)}
+                      className="delete-btn"
+                      title="删除"
+                    >
+                      &#x1F5D1;
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {showSubtaskInput && (
+            <div className="mb-1.5 flex items-center gap-2 py-1">
+              <input
+                ref={subtaskInputRef}
+                value={subtaskValue}
+                onChange={(e) => setSubtaskValue(e.target.value)}
+                onKeyDown={handleSubtaskKeyDown}
+                placeholder="子任务…"
+                maxLength={200}
+                className="flex-1 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[0.8rem] text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)]"
+              />
+              <button onClick={handleSubtaskSubmit} className="edit-btn" title="添加">
+                &#x1F4BE;
+              </button>
+              <button
+                onClick={() => {
+                  setSubtaskValue("")
+                  setShowSubtaskInput(false)
+                }}
+                className="delete-btn"
+                title="取消"
+              >
+                &#10005;
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </li>
   )

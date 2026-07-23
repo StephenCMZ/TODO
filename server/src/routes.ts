@@ -53,9 +53,9 @@ router.get("/projects/:id/todos", authMiddleware, requireProjectRole("view"), (r
 })
 
 router.post("/todos", authMiddleware, requireProjectRole("edit"), (req: Request, res: Response) => {
-  const { id, projectId, text } = req.body
+  const { id, projectId, text, parentId } = req.body
   if (!id || !projectId || !text) return res.status(400).json({ error: "请填写所有字段" })
-  const todo = createTodo(id, projectId, text)
+  const todo = createTodo(id, projectId, text, parentId)
   res.status(201).json(todo)
 })
 

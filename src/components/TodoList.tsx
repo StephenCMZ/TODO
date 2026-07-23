@@ -14,6 +14,7 @@ interface Props {
   onToggleDone: (id: string) => void
   onStatusClick: (id: string, idx: number) => void
   onReorder: (id: string, sortOrder: number) => void
+  onAdd: (text: string, parentId: string) => void
 }
 
 export function TodoList({
@@ -27,12 +28,14 @@ export function TodoList({
   onToggleDone,
   onStatusClick,
   onReorder,
+  onAdd,
 }: Props) {
   const listRef = useRef<HTMLUListElement>(null)
   const draggedIdRef = useRef<string | null>(null)
   const { state } = useStore()
 
-  const sorted = [...todos].sort((a, b) => {
+  const topLevel = todos.filter((t) => !t.parentId)
+  const sorted = [...topLevel].sort((a, b) => {
     const aDone = (() => {
       const p = state.projects.find((pr) => pr.id === a.projectId)
       if (!p) return false
@@ -51,7 +54,7 @@ export function TodoList({
     return a.sortOrder - b.sortOrder
   })
 
-  if (sorted.length === 0) {
+  if (topLevel.length === 0) {
     return (
       <div className="px-4 py-12 text-center text-[var(--ink-muted)]">
         <span className="mb-2 block text-[2rem] opacity-30">&#x1F4DD;</span>
@@ -134,12 +137,14 @@ export function TodoList({
             project={project}
             index={i}
             isEditing={editingId === todo.id}
+            editingId={editingId}
             onStartEdit={onStartEdit}
             onSaveEdit={onSaveEdit}
             onCancelEdit={onCancelEdit}
             onDelete={onDelete}
             onToggleDone={onToggleDone}
             onStatusClick={onStatusClick}
+            onAdd={onAdd}
           />
         </div>
       ))}

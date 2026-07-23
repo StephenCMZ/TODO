@@ -97,12 +97,19 @@ function migrateProjects() {
     db.exec("ALTER TABLE projects ADD COLUMN user_id TEXT")
     db.exec("CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id)")
   }
+  if (!columns.some((c: any) => c.name === "auto_complete_parent")) {
+    db.exec("ALTER TABLE projects ADD COLUMN auto_complete_parent INTEGER NOT NULL DEFAULT 0")
+  }
 }
 
 function migrateTodos() {
   const columns = db.prepare("PRAGMA table_info(todos)").all() as any[]
   if (!columns.some((c: any) => c.name === "statuses")) {
     db.exec("ALTER TABLE todos ADD COLUMN statuses TEXT DEFAULT NULL")
+  }
+  if (!columns.some((c: any) => c.name === "parent_id")) {
+    db.exec("ALTER TABLE todos ADD COLUMN parent_id TEXT DEFAULT NULL")
+    db.exec("CREATE INDEX IF NOT EXISTS idx_todos_parent ON todos(parent_id)")
   }
 }
 
@@ -270,7 +277,7 @@ export function getProject(id: string) {
 
 export function createProject(id: string, name: string, color: string, statuses: string[], userId?: string) {
   const stmt = db.prepare(
-    "INSERT INTO projects (id, user_id, name, color, statuses, created, show_done, show_time, show_filter_bar, auto_sort_done, show_index) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 1, 1, 1)"
+    "INSERT INTO projects (id, user_id, name, color, statuses, created, show_done, show_time, show_filter_bar, auto_sort_done, show_index, auto_complete_parent) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 1, 1, 1, 1)"
   )
   stmt.run(id, userId || null, name.trim(), color, JSON.stringify(statuses), Date.now())
   return getProject(id)
@@ -290,7 +297,7 @@ export function updateProject(id: string, name: string, color: string, statuses:
     }
   }
   const stmt = db.prepare(
-    "UPDATE projects SET name = ?, color = ?, statuses = ?, show_done = ?, show_time = ?, show_filter_bar = ?, auto_sort_done = ?, show_index = ? WHERE id = ?"
+    "UPDATE projects SET name = ?, color = ?, statuses = ?, show_done = ?, show_time = ?, show_filter_bar = ?, auto_sort_done = ?, show_index = ?, auto_complete_parent = ? WHERE id = ?"
   )
   stmt.run(
     name.trim(), color, JSON.stringify(statuses),
@@ -299,6 +306,7 @@ export function updateProject(id: string, name: string, color: string, statuses:
     settings.showFilterBar ? 1 : 0,
     settings.autoSortDone ? 1 : 0,
     settings.showIndex ? 1 : 0,
+    settings.autoCompleteParent ? 1 : 0,
     id
   )
 
@@ -330,13 +338,13 @@ export function listTodos(projectId: string) {
   return rows.map(rowToTodo)
 }
 
-export function createTodo(id: string, projectId: string, text: string) {
+export function createTodo(id: string, projectId: string, text: string, parentId?: string) {
   const now = Date.now()
   const storedText = isEncryptionEnabled() ? encrypt(text) : text
   const stmt = db.prepare(
-    "INSERT INTO todos (id, project_id, text, status_index, created, sort_order) VALUES (?, ?, ?, 0, ?, ?)"
+    "INSERT INTO todos (id, project_id, text, status_index, created, sort_order, parent_id) VALUES (?, ?, ?, 0, ?, ?, ?)"
   )
-  stmt.run(id, projectId, storedText, now, now)
+  stmt.run(id, projectId, storedText, now, now, parentId || null)
   return getTodo(id)
 }
 
@@ -351,7 +359,7 @@ export function updateTodoText(id: string, text: string) {
 }
 
 export function deleteTodoById(id: string) {
-  db.prepare("DELETE FROM todos WHERE id = ?").run(id)
+  db.prepare("DELETE FROM todos WHERE id = ? OR parent_id = ?").run(id, id)
 }
 
 export function setTodoStatus(id: string, statusIndex: number) {
@@ -385,10 +393,10 @@ export function clearDoneTodos(projectId: string) {
     const statuses = t.statuses ? JSON.parse(t.statuses) : project.statuses
     if (statuses.length > 0) {
       if (t.status_index >= statuses.length - 1) {
-        db.prepare("DELETE FROM todos WHERE id = ?").run(t.id)
+        db.prepare("DELETE FROM todos WHERE id = ? OR parent_id = ?").run(t.id, t.id)
       }
     } else if (t.status_index < 0) {
-      db.prepare("DELETE FROM todos WHERE id = ?").run(t.id)
+      db.prepare("DELETE FROM todos WHERE id = ? OR parent_id = ?").run(t.id, t.id)
     }
   }
 }
@@ -471,6 +479,7 @@ function rowToProject(row: any) {
     autoSortDone: !!row.auto_sort_done,
     showIndex: !!row.show_index,
     myRole: row.my_role || undefined,
+    autoCompleteParent: !!row.auto_complete_parent,
   }
 }
 
@@ -484,5 +493,6 @@ function rowToTodo(row: any) {
     created: row.created,
     sortOrder: row.sort_order,
     statuses: row.statuses ? JSON.parse(row.statuses) : undefined,
+    parentId: row.parent_id || undefined,
   }
 }

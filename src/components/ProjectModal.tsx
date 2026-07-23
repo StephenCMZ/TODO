@@ -32,6 +32,7 @@ export function ProjectModal({ isOpen, mode, editProject, currentUserId, readOnl
   const [showFilterBar, setShowFilterBar] = useState(true)
   const [autoSortDone, setAutoSortDone] = useState(true)
   const [showIndex, setShowIndex] = useState(true)
+  const [autoCompleteParent, setAutoCompleteParent] = useState(false)
   const [statusEditorEnabled, setStatusEditorEnabled] = useState(false)
   const [members, setMembers] = useState<ProjectMember[]>([])
   const [availableUsers, setAvailableUsers] = useState<{ id: string; username: string }[]>([])
@@ -61,6 +62,7 @@ export function ProjectModal({ isOpen, mode, editProject, currentUserId, readOnl
       setShowFilterBar(editProject.showFilterBar)
       setAutoSortDone(editProject.autoSortDone)
       setShowIndex(editProject.showIndex)
+      setAutoCompleteParent(editProject.autoCompleteParent)
     } else {
       setName("")
       setSelectedColor(COLORS[0])
@@ -71,6 +73,7 @@ export function ProjectModal({ isOpen, mode, editProject, currentUserId, readOnl
       setShowFilterBar(true)
       setAutoSortDone(true)
       setShowIndex(true)
+      setAutoCompleteParent(true)
     }
     setTimeout(() => inputRef.current?.focus(), 100)
   }, [isOpen, mode, editProject])
@@ -224,6 +227,7 @@ export function ProjectModal({ isOpen, mode, editProject, currentUserId, readOnl
       showFilterBar,
       autoSortDone,
       showIndex,
+      autoCompleteParent,
     })
     onClose()
   }
@@ -423,6 +427,9 @@ export function ProjectModal({ isOpen, mode, editProject, currentUserId, readOnl
         </ToggleRow>
         <ToggleRow checked={showIndex} onChange={setShowIndex} disabled={readOnly}>
           显示序号
+        </ToggleRow>
+        <ToggleRow checked={autoCompleteParent} onChange={setAutoCompleteParent} disabled={readOnly}>
+          自动完成父任务
         </ToggleRow>
         <ToggleRow checked={autoSortDone} onChange={setAutoSortDone} disabled={readOnly}>
           已完成移到底部

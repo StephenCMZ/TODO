@@ -214,9 +214,13 @@ function AppInner() {
   }, [currentProject, state.projects, deleteProject])
 
   const handleAddTodo = useCallback(
-    async (text: string) => {
+    async (text: string, parentId?: string) => {
       if (!currentProject) return
-      await addTodo(currentProject, text)
+      if (parentId) {
+        await addTodo(currentProject, text, parentId)
+      } else {
+        await addTodo(currentProject, text)
+      }
       setEditingId(null)
     },
     [currentProject, addTodo],
@@ -336,6 +340,7 @@ function AppInner() {
           onToggleDone={handleToggleDone}
           onStatusClick={handleSetTodoStatus}
           onReorder={handleReorderTodo}
+          onAdd={handleAddTodo}
         />
       )}
 

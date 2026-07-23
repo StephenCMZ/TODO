@@ -11,6 +11,7 @@ export interface Project {
   showFilterBar: boolean
   autoSortDone: boolean
   showIndex: boolean
+  autoCompleteParent: boolean
   myRole?: "manage" | "edit" | "view"
 }
 
@@ -29,6 +30,7 @@ export interface Todo {
   created: number
   sortOrder: number
   statuses?: string[]
+  parentId?: string
 }
 
 export interface AppData {
@@ -43,4 +45,5 @@ export interface ProjectSettings {
   showFilterBar: boolean
   autoSortDone: boolean
   showIndex: boolean
+  autoCompleteParent: boolean
 }
