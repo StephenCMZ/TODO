@@ -16,6 +16,8 @@ interface Props {
   onToggleDone: (id: string) => void
   onStatusClick: (id: string, idx: number) => void
   onAdd: (text: string, parentId: string) => void
+  collapsed: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
 }
 
 export function TodoItem({
@@ -31,6 +33,8 @@ export function TodoItem({
   onToggleDone,
   onStatusClick,
   onAdd,
+  collapsed,
+  onCollapsedChange,
 }: Props) {
   const { state, setTodoStatuses } = useStore()
   const effectiveStatuses = todo.statuses ?? project.statuses
@@ -56,8 +60,6 @@ export function TodoItem({
   const subtasks = state.todos
     .filter((t) => t.parentId === todo.id)
     .sort((a, b) => a.sortOrder - b.sortOrder)
-  const [collapsed, setCollapsed] = useState(true)
-
   // Subtask add input
   const [showSubtaskInput, setShowSubtaskInput] = useState(false)
   const [subtaskValue, setSubtaskValue] = useState("")
@@ -194,7 +196,7 @@ export function TodoItem({
 
   function handleAddSubtask() {
     setShowSubtaskInput(true)
-    setCollapsed(false)
+    onCollapsedChange?.(false)
   }
 
   function handleSubtaskSubmit() {
@@ -369,7 +371,7 @@ export function TodoItem({
 
         {subtasks.length > 0 && (
           <button
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={() => onCollapsedChange?.(!collapsed)}
             className="flex cursor-pointer items-center justify-center border-none bg-transparent p-0 text-[0.65rem] text-[var(--ink-muted)] transition-transform duration-[0.15s] hover:text-[var(--ink)]"
             title={collapsed ? "展开子任务" : "折叠子任务"}
           >

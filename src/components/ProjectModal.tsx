@@ -33,6 +33,7 @@ export function ProjectModal({ isOpen, mode, editProject, currentUserId, readOnl
   const [autoSortDone, setAutoSortDone] = useState(true)
   const [showIndex, setShowIndex] = useState(true)
   const [autoCompleteParent, setAutoCompleteParent] = useState(false)
+  const [autoExpandSubtasks, setAutoExpandSubtasks] = useState(false)
   const [statusEditorEnabled, setStatusEditorEnabled] = useState(false)
   const [members, setMembers] = useState<ProjectMember[]>([])
   const [availableUsers, setAvailableUsers] = useState<{ id: string; username: string }[]>([])
@@ -63,6 +64,7 @@ export function ProjectModal({ isOpen, mode, editProject, currentUserId, readOnl
       setAutoSortDone(editProject.autoSortDone)
       setShowIndex(editProject.showIndex)
       setAutoCompleteParent(editProject.autoCompleteParent)
+      setAutoExpandSubtasks(editProject.autoExpandSubtasks)
     } else {
       setName("")
       setSelectedColor(COLORS[0])
@@ -74,6 +76,7 @@ export function ProjectModal({ isOpen, mode, editProject, currentUserId, readOnl
       setAutoSortDone(true)
       setShowIndex(true)
       setAutoCompleteParent(true)
+      setAutoExpandSubtasks(false)
     }
     setTimeout(() => inputRef.current?.focus(), 100)
   }, [isOpen, mode, editProject])
@@ -200,6 +203,8 @@ export function ProjectModal({ isOpen, mode, editProject, currentUserId, readOnl
           showFilterBar: editProject.showFilterBar,
           autoSortDone: editProject.autoSortDone,
           showIndex: editProject.showIndex,
+          autoCompleteParent: editProject.autoCompleteParent,
+          autoExpandSubtasks: editProject.autoExpandSubtasks,
         }),
       })
       if (res.ok) {
@@ -228,6 +233,7 @@ export function ProjectModal({ isOpen, mode, editProject, currentUserId, readOnl
       autoSortDone,
       showIndex,
       autoCompleteParent,
+      autoExpandSubtasks,
     })
     onClose()
   }
@@ -430,6 +436,9 @@ export function ProjectModal({ isOpen, mode, editProject, currentUserId, readOnl
         </ToggleRow>
         <ToggleRow checked={autoCompleteParent} onChange={setAutoCompleteParent} disabled={readOnly}>
           自动完成父任务
+        </ToggleRow>
+        <ToggleRow checked={autoExpandSubtasks} onChange={setAutoExpandSubtasks} disabled={readOnly}>
+          自动展开子任务
         </ToggleRow>
         <ToggleRow checked={autoSortDone} onChange={setAutoSortDone} disabled={readOnly}>
           已完成移到底部

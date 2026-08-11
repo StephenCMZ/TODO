@@ -113,6 +113,7 @@ function AppInner() {
   const [currentProject, setCurrentProject] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
+  const [collapsedByTodo, setCollapsedByTodo] = useState<Record<string, boolean>>({})
   const [projectModal, setProjectModal] = useState<{ isOpen: boolean; mode: "add" | "rename" }>({
     isOpen: false,
     mode: "add",
@@ -146,6 +147,19 @@ function AppInner() {
   const canManageProjects = authUser?.role === "admin" || authUser?.role === "project_admin"
   const project = currentProject ? state.projects.find((p) => p.id === currentProject) || null : null
   const todos = currentProject ? state.todos.filter((t) => t.projectId === currentProject) : []
+
+  const defaultCollapsed = project ? !project.autoExpandSubtasks : true
+  const topLevelIds = todos.filter((t) => !t.parentId).map((t) => t.id)
+  // ▼「收起子任务」只在所有顶级任务的子任务都展开时显示；其余情况显示 ▶「展开子任务」
+  const allExpanded =
+    topLevelIds.length > 0 &&
+    topLevelIds.every((id) => !(collapsedByTodo[id] ?? defaultCollapsed))
+
+  // Reset per-todo expand/collapse overrides when switching projects or when
+  // the project's auto-expand setting changes
+  useEffect(() => {
+    setCollapsedByTodo({})
+  }, [project?.id, project?.autoExpandSubtasks])
 
   let visibleTodos = todos
   if (project) {
@@ -325,6 +339,15 @@ function AppInner() {
           projectColor={project.color}
           filterStatus={filterStatus}
           onFilterChange={setFilterStatus}
+          allExpanded={allExpanded}
+          onToggleExpandSubtasks={() => {
+            const nextExpand = !allExpanded
+            const nextCollapsed: Record<string, boolean> = {}
+            topLevelIds.forEach((id) => {
+              nextCollapsed[id] = !nextExpand
+            })
+            setCollapsedByTodo(nextCollapsed)
+          }}
         />
       )}
 
@@ -341,6 +364,11 @@ function AppInner() {
           onStatusClick={handleSetTodoStatus}
           onReorder={handleReorderTodo}
           onAdd={handleAddTodo}
+          collapsedByTodo={collapsedByTodo}
+          defaultCollapsed={defaultCollapsed}
+          onSubtaskCollapsedChange={(todoId, collapsed) => {
+            setCollapsedByTodo((prev) => ({ ...prev, [todoId]: collapsed }))
+          }}
         />
       )}
 

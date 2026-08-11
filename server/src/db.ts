@@ -53,6 +53,7 @@ function createSchema() {
       show_filter_bar INTEGER NOT NULL DEFAULT 1,
       auto_sort_done INTEGER NOT NULL DEFAULT 1,
       show_index INTEGER NOT NULL DEFAULT 1,
+      auto_expand_subtasks INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     );
 
@@ -99,6 +100,9 @@ function migrateProjects() {
   }
   if (!columns.some((c: any) => c.name === "auto_complete_parent")) {
     db.exec("ALTER TABLE projects ADD COLUMN auto_complete_parent INTEGER NOT NULL DEFAULT 0")
+  }
+  if (!columns.some((c: any) => c.name === "auto_expand_subtasks")) {
+    db.exec("ALTER TABLE projects ADD COLUMN auto_expand_subtasks INTEGER NOT NULL DEFAULT 0")
   }
 }
 
@@ -277,7 +281,7 @@ export function getProject(id: string) {
 
 export function createProject(id: string, name: string, color: string, statuses: string[], userId?: string) {
   const stmt = db.prepare(
-    "INSERT INTO projects (id, user_id, name, color, statuses, created, show_done, show_time, show_filter_bar, auto_sort_done, show_index, auto_complete_parent) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 1, 1, 1, 1)"
+    "INSERT INTO projects (id, user_id, name, color, statuses, created, show_done, show_time, show_filter_bar, auto_sort_done, show_index, auto_complete_parent, auto_expand_subtasks) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 1, 1, 1, 1, 0)"
   )
   stmt.run(id, userId || null, name.trim(), color, JSON.stringify(statuses), Date.now())
   return getProject(id)
@@ -297,7 +301,7 @@ export function updateProject(id: string, name: string, color: string, statuses:
     }
   }
   const stmt = db.prepare(
-    "UPDATE projects SET name = ?, color = ?, statuses = ?, show_done = ?, show_time = ?, show_filter_bar = ?, auto_sort_done = ?, show_index = ?, auto_complete_parent = ? WHERE id = ?"
+    "UPDATE projects SET name = ?, color = ?, statuses = ?, show_done = ?, show_time = ?, show_filter_bar = ?, auto_sort_done = ?, show_index = ?, auto_complete_parent = ?, auto_expand_subtasks = ? WHERE id = ?"
   )
   stmt.run(
     name.trim(), color, JSON.stringify(statuses),
@@ -307,6 +311,7 @@ export function updateProject(id: string, name: string, color: string, statuses:
     settings.autoSortDone ? 1 : 0,
     settings.showIndex ? 1 : 0,
     settings.autoCompleteParent ? 1 : 0,
+    settings.autoExpandSubtasks ? 1 : 0,
     id
   )
 
@@ -480,6 +485,7 @@ function rowToProject(row: any) {
     showIndex: !!row.show_index,
     myRole: row.my_role || undefined,
     autoCompleteParent: !!row.auto_complete_parent,
+    autoExpandSubtasks: !!row.auto_expand_subtasks,
   }
 }
 

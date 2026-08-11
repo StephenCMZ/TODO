@@ -15,6 +15,9 @@ interface Props {
   onStatusClick: (id: string, idx: number) => void
   onReorder: (id: string, sortOrder: number) => void
   onAdd: (text: string, parentId: string) => void
+  collapsedByTodo: Record<string, boolean>
+  defaultCollapsed: boolean
+  onSubtaskCollapsedChange?: (todoId: string, collapsed: boolean) => void
 }
 
 export function TodoList({
@@ -29,6 +32,9 @@ export function TodoList({
   onStatusClick,
   onReorder,
   onAdd,
+  collapsedByTodo,
+  defaultCollapsed,
+  onSubtaskCollapsedChange,
 }: Props) {
   const listRef = useRef<HTMLUListElement>(null)
   const draggedIdRef = useRef<string | null>(null)
@@ -145,6 +151,10 @@ export function TodoList({
             onToggleDone={onToggleDone}
             onStatusClick={onStatusClick}
             onAdd={onAdd}
+            collapsed={collapsedByTodo[todo.id] ?? defaultCollapsed}
+            onCollapsedChange={(collapsed) =>
+              onSubtaskCollapsedChange?.(todo.id, collapsed)
+            }
           />
         </div>
       ))}

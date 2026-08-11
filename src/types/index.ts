@@ -12,6 +12,7 @@ export interface Project {
   autoSortDone: boolean
   showIndex: boolean
   autoCompleteParent: boolean
+  autoExpandSubtasks: boolean
   myRole?: "manage" | "edit" | "view"
 }
 
@@ -46,4 +47,5 @@ export interface ProjectSettings {
   autoSortDone: boolean
   showIndex: boolean
   autoCompleteParent: boolean
+  autoExpandSubtasks: boolean
 }

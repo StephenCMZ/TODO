@@ -104,6 +104,7 @@ function reducer(state: AppData, action: Action): AppData {
         autoSortDone: true,
         showIndex: true,
         autoCompleteParent: true,
+        autoExpandSubtasks: false,
       }
       return { ...state, projects: [...state.projects, p] }
     }
@@ -284,6 +285,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         autoSortDone: settings.autoSortDone,
         showIndex: settings.showIndex,
         autoCompleteParent: settings.autoCompleteParent,
+        autoExpandSubtasks: settings.autoExpandSubtasks,
       })
       dispatch({ type: "UPDATE_PROJECT", id, name, color, statuses, settings })
     },
