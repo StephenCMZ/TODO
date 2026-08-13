@@ -87,6 +87,8 @@ export function TodoList({
   }
 
   function handleDragOver(e: React.DragEvent) {
+    // Ignore subtask drags (handled inside TodoItem)
+    if (e.dataTransfer.types.includes("application/x-todo-subtask")) return
     e.preventDefault()
     e.dataTransfer.dropEffect = "move"
     const el = (e.target as HTMLElement).closest(".todo-item") as HTMLElement
@@ -100,6 +102,7 @@ export function TodoList({
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
+    if (e.dataTransfer.types.includes("application/x-todo-subtask")) return
     const dropTarget = (e.target as HTMLElement).closest(".todo-item") as HTMLElement | null
     if (!dropTarget) return
     dropTarget.classList.remove("drag-over")
@@ -151,6 +154,7 @@ export function TodoList({
             onToggleDone={onToggleDone}
             onStatusClick={onStatusClick}
             onAdd={onAdd}
+            onReorder={onReorder}
             collapsed={collapsedByTodo[todo.id] ?? defaultCollapsed}
             onCollapsedChange={(collapsed) =>
               onSubtaskCollapsedChange?.(todo.id, collapsed)

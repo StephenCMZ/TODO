@@ -184,6 +184,13 @@ body::after {
   box-shadow: 0 -2px 0 0 var(--accent), 0 1px 3px var(--shadow) !important;
 }
 
+/* Subtask drag states */
+.subtask-item.dragging {
+  opacity: 0.3 !important;
+}
+.subtask-item.drag-over {
+  box-shadow: 0 -2px 0 0 var(--accent) !important;
+}
 /* Action buttons (edit/delete in TodoItem) */
 .edit-btn, .delete-btn, .rm-status {
   background: none;

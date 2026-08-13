@@ -16,6 +16,7 @@ interface Props {
   onToggleDone: (id: string) => void
   onStatusClick: (id: string, idx: number) => void
   onAdd: (text: string, parentId: string) => void
+  onReorder: (id: string, sortOrder: number) => void
   collapsed: boolean
   onCollapsedChange?: (collapsed: boolean) => void
 }
@@ -33,6 +34,7 @@ export function TodoItem({
   onToggleDone,
   onStatusClick,
   onAdd,
+  onReorder,
   collapsed,
   onCollapsedChange,
 }: Props) {
@@ -68,6 +70,8 @@ export function TodoItem({
   // Subtask editing state
   const [subtaskEditValue, setSubtaskEditValue] = useState("")
   const subtaskEditRef = useRef<HTMLInputElement>(null)
+  const subtaskListRef = useRef<HTMLDivElement>(null)
+  const subtaskDraggedIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (isEditing && editRef.current) {
@@ -230,6 +234,62 @@ export function TodoItem({
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+    })
+  }
+
+  // ── Subtask drag & reorder ──
+
+  function handleSubtaskDragStart(e: React.DragEvent, id: string) {
+    subtaskDraggedIdRef.current = id
+    const el = (e.target as HTMLElement).closest(".subtask-item") as HTMLElement
+    el?.classList.add("dragging")
+    e.dataTransfer.effectAllowed = "move"
+    e.dataTransfer.setData("application/x-todo-subtask", id)
+    // 阻止冒泡到顶层任务拖拽处理器，避免父级被置灰
+    e.stopPropagation()
+  }
+
+  function handleSubtaskDragEnd(e: React.DragEvent) {
+    subtaskDraggedIdRef.current = null
+    const el = (e.target as HTMLElement).closest(".subtask-item") as HTMLElement
+    el?.classList.remove("dragging")
+    subtaskListRef.current?.querySelectorAll(".subtask-item").forEach((el) => el.classList.remove("drag-over"))
+  }
+
+  function handleSubtaskDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+    const el = (e.target as HTMLElement).closest(".subtask-item") as HTMLElement
+    if (el && !el.classList.contains("dragging")) el.classList.add("drag-over")
+  }
+
+  function handleSubtaskDragLeave(e: React.DragEvent) {
+    const el = (e.target as HTMLElement).closest(".subtask-item") as HTMLElement
+    el?.classList.remove("drag-over")
+  }
+
+  function handleSubtaskDrop(e: React.DragEvent) {
+    e.preventDefault()
+    const dropTarget = (e.target as HTMLElement).closest(".subtask-item") as HTMLElement | null
+    if (!dropTarget) return
+    dropTarget.classList.remove("drag-over")
+
+    const draggedId = subtaskDraggedIdRef.current
+    const targetId = dropTarget.dataset.id
+    if (!draggedId || !targetId || draggedId === targetId) return
+
+    // Reorder among sibling subtasks of the same parent
+    const fromIdx = subtasks.findIndex((t) => t.id === draggedId)
+    const toIdx = subtasks.findIndex((t) => t.id === targetId)
+    if (fromIdx === -1 || toIdx === -1) return
+
+    const reordered = [...subtasks]
+    const [moved] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, moved)
+
+    // Assign sequential sortOrder and dispatch
+    reordered.forEach((t, i) => {
+      if (t.sortOrder !== i) onReorder(t.id, i)
     })
   }
 
@@ -490,7 +550,17 @@ export function TodoItem({
             }
 
             return (
-              <div key={st.id} className="mb-1.5 flex items-center gap-2 py-1">
+              <div
+                key={st.id}
+                className="subtask-item mb-1.5 flex items-center gap-2 py-1"
+                data-id={st.id}
+                draggable={!editingId && !isViewOnly}
+                onDragStart={!isViewOnly ? (e) => handleSubtaskDragStart(e, st.id) : undefined}
+                onDragEnd={!isViewOnly ? handleSubtaskDragEnd : undefined}
+                onDragOver={!isViewOnly ? handleSubtaskDragOver : undefined}
+                onDragLeave={!isViewOnly ? handleSubtaskDragLeave : undefined}
+                onDrop={!isViewOnly ? handleSubtaskDrop : undefined}
+              >
                 <input
                   type="checkbox"
                   checked={stDone}
