@@ -7,6 +7,11 @@ import {
   listUsers,
 } from "./db"
 import { authMiddleware, projectManageMiddleware, requireProjectRole } from "./auth"
+import { audit } from "./audit"
+import { getUserById } from "./db"
+
+const truncate = (s: string, n = 100) => (s.length > n ? s.slice(0, n) + "…" : s)
+const projectName = (projectId: string) => getProject(projectId)?.name ?? projectId
 
 const router = Router()
 
@@ -29,19 +34,24 @@ router.post("/projects", authMiddleware, projectManageMiddleware, (req: Request,
   const { id, name, color, statuses } = req.body
   if (!id || !name) return res.status(400).json({ error: "请填写所有字段" })
   const project = createProject(id, name, color || "#c7433a", statuses || [], req.user!.id)
+  audit(req, "project.create", `创建项目：${name}`)
   res.status(201).json(project)
 })
 
 router.put("/projects/:id", authMiddleware, requireProjectRole("manage"), (req: Request, res: Response) => {
   const { name, color, statuses, ownerId, ...settings } = req.body
   if (!name) return res.status(400).json({ error: "请填写所有字段" })
+  const prev = getProject(req.params.id)
   updateProject(req.params.id, name, color, statuses || [], settings, ownerId)
   const project = getProject(req.params.id)
+  audit(req, "project.update", `修改项目：${prev?.name ?? req.params.id} → ${name}`)
   res.json(project)
 })
 
 router.delete("/projects/:id", authMiddleware, requireProjectRole("manage"), (req: Request, res: Response) => {
+  const project = getProject(req.params.id)
   deleteProject(req.params.id)
+  audit(req, "project.delete", `删除项目：${project?.name ?? req.params.id}`)
   res.status(204).send()
 })
 
@@ -56,19 +66,24 @@ router.post("/todos", authMiddleware, requireProjectRole("edit"), (req: Request,
   const { id, projectId, text, parentId } = req.body
   if (!id || !projectId || !text) return res.status(400).json({ error: "请填写所有字段" })
   const todo = createTodo(id, projectId, text, parentId)
+  audit(req, "todo.create", `新建任务：[${projectName(projectId)}]${truncate(text)}${parentId ? "（子任务）" : ""}`)
   res.status(201).json(todo)
 })
 
 router.put("/todos/:id", authMiddleware, requireProjectRole("edit"), (req: Request, res: Response) => {
   const { text } = req.body
   if (!text) return res.status(400).json({ error: "请输入任务内容" })
+  const prev = getTodo(req.params.id)
   updateTodoText(req.params.id, text)
   const todo = getTodo(req.params.id)
+  audit(req, "todo.update", `编辑任务：${prev ? `[${projectName(prev.projectId)}]${truncate(prev.text)}` : req.params.id} → ${truncate(text)}`)
   res.json(todo)
 })
 
 router.delete("/todos/:id", authMiddleware, requireProjectRole("edit"), (req: Request, res: Response) => {
+  const todo = getTodo(req.params.id)
   deleteTodoById(req.params.id)
+  audit(req, "todo.delete", `删除任务：${todo ? `[${projectName(todo.projectId)}]${truncate(todo.text)}` : req.params.id}`)
   res.status(204).send()
 })
 
@@ -77,6 +92,7 @@ router.put("/todos/:id/status", authMiddleware, requireProjectRole("edit"), (req
   if (statusIndex === undefined) return res.status(400).json({ error: "缺少状态索引" })
   setTodoStatus(req.params.id, statusIndex)
   const todo = getTodo(req.params.id)
+  audit(req, "todo.status", `任务状态 → ${statusIndex}${todo ? `（[${projectName(todo.projectId)}]${truncate(todo.text)}）` : ""}`)
   res.json(todo)
 })
 
@@ -84,6 +100,7 @@ router.put("/todos/:id/statuses", authMiddleware, requireProjectRole("edit"), (r
   const { statuses } = req.body
   updateTodoStatuses(req.params.id, statuses === undefined ? null : statuses)
   const todo = getTodo(req.params.id)
+  audit(req, "todo.statuses", statuses === undefined ? `恢复项目默认状态节点：[${todo ? projectName(todo.projectId) : ""}]` : `修改状态节点：[${todo ? projectName(todo.projectId) : ""}]${truncate(JSON.stringify(statuses))}`)
   res.json(todo)
 })
 
@@ -97,6 +114,7 @@ router.put("/todos/:id/reorder", authMiddleware, requireProjectRole("edit"), (re
 router.put("/todos/:id/toggle", authMiddleware, requireProjectRole("edit"), (req: Request, res: Response) => {
   toggleTodoDone(req.params.id)
   const todo = getTodo(req.params.id)
+  audit(req, "todo.toggle", `勾选/取消：${todo ? `[${projectName(todo.projectId)}]${truncate(todo.text)}` : req.params.id}`)
   res.json(todo)
 })
 
@@ -104,6 +122,8 @@ router.post("/todos/clear-done", authMiddleware, requireProjectRole("edit"), (re
   const { projectId } = req.body
   if (!projectId) return res.status(400).json({ error: "缺少项目ID" })
   clearDoneTodos(projectId)
+  const p = getProject(projectId)
+  audit(req, "todo.clear_done", `清理已完成任务：[${p?.name ?? projectId}]`)
   res.json({ ok: true })
 })
 
@@ -126,6 +146,8 @@ router.post("/projects/:id/members", authMiddleware, requireProjectRole("manage"
   if (!userId || !role) return res.status(400).json({ error: "请填写所有字段" })
   if (!["manage", "edit", "view"].includes(role)) return res.status(400).json({ error: "角色无效" })
   addProjectMember(req.params.id, userId, role)
+  const u = getUserById(userId)
+  audit(req, "project.member.add", `添加成员 ${u?.username ?? userId}（${role}）`)
   res.status(201).json({ ok: true })
 })
 
@@ -134,12 +156,16 @@ router.put("/projects/:id/members/:userId", authMiddleware, requireProjectRole("
   const { role } = req.body
   if (!role || !["manage", "edit", "view"].includes(role)) return res.status(400).json({ error: "角色无效" })
   updateProjectMemberRole(req.params.id, req.params.userId, role)
+  const u = getUserById(req.params.userId)
+  audit(req, "project.member.role", `修改成员 ${u?.username ?? req.params.userId} 角色为 ${role}`)
   res.json({ ok: true })
 })
 
 router.delete("/projects/:id/members/:userId", authMiddleware, requireProjectRole("manage"), (req: Request, res: Response) => {
   if (req.params.userId === req.user!.id && req.user?.role !== "admin") return res.status(400).json({ error: "不能移除自己" })
+  const u = getUserById(req.params.userId)
   removeProjectMember(req.params.id, req.params.userId)
+  audit(req, "project.member.remove", `移除成员 ${u?.username ?? req.params.userId}`)
   res.status(204).send()
 })
 

@@ -9,6 +9,7 @@ export interface UserPayload {
   id: string
   username: string
   role: string
+  tokenVersion?: number
 }
 
 // Extend Express Request
@@ -56,6 +57,11 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
   const user = getUserById(payload.id)
   if (!user || !user.isActive) {
     res.status(401).json({ error: "Account disabled" })
+    return
+  }
+  // Reject tokens issued before the latest password change (forces re-login)
+  if ((payload.tokenVersion ?? 0) !== user.tokenVersion) {
+    res.status(401).json({ error: "登录已失效，请重新登录" })
     return
   }
   req.user = { ...payload, role: user.role }

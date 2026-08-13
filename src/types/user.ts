@@ -7,3 +7,13 @@ export interface User {
   created: number
   updated: number
 }
+
+export interface AuditLog {
+  id: string
+  userId: string | null
+  username: string
+  action: string
+  details: string | null
+  ip: string
+  created: number
+}

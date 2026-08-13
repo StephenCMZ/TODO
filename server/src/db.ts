@@ -21,6 +21,7 @@ export function getDb(): Database.Database {
 
     createSchema()
     migrateProjects()
+    migrateUsers()
   migrateTodos()
   }
   return db
@@ -35,6 +36,7 @@ function createSchema() {
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'user',
       is_active INTEGER NOT NULL DEFAULT 1,
+      token_version INTEGER NOT NULL DEFAULT 0,
       reset_token TEXT,
       reset_token_expires INTEGER,
       created INTEGER NOT NULL,
@@ -83,12 +85,30 @@ function createSchema() {
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      username TEXT NOT NULL DEFAULT 'system',
+      action TEXT NOT NULL,
+      details TEXT,
+      ip TEXT NOT NULL DEFAULT '',
+      created INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created);
   `)
   // Default settings
   const insertSetting = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)")
   insertSetting.run("registration_enabled", "true")
   insertSetting.run("forgot_password_enabled", "true")
   insertSetting.run("footer_html", "")
+}
+
+function migrateUsers() {
+  const columns = db.prepare("PRAGMA table_info(users)").all() as any[]
+  if (!columns.some((c: any) => c.name === "token_version")) {
+    db.exec("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0")
+  }
 }
 
 function migrateProjects() {
@@ -130,6 +150,7 @@ function rowToUser(row: any) {
     email: row.email,
     role: row.role,
     isActive: !!row.is_active,
+    tokenVersion: row.token_version ?? 0,
     created: row.created,
     updated: row.updated,
   }
@@ -221,6 +242,20 @@ export function verifyUserPassword(usernameOrEmail: string, password: string) {
   return rowToUser(row)
 }
 
+export function bumpTokenVersion(userId: string) {
+  db.prepare("UPDATE users SET token_version = token_version + 1, updated = ? WHERE id = ?").run(Date.now(), userId)
+}
+
+export function changeUserPassword(userId: string, currentPassword: string, newPassword: string) {
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any
+  if (!row) return { ok: false as const, reason: "not_found" as const }
+  if (!comparePassword(currentPassword, row.password_hash)) return { ok: false as const, reason: "wrong_password" as const }
+  const pwHash = hashPassword(newPassword)
+  db.prepare("UPDATE users SET password_hash = ?, updated = ? WHERE id = ?").run(pwHash, Date.now(), userId)
+  bumpTokenVersion(userId)
+  return { ok: true as const }
+}
+
 export function setResetToken(email: string) {
   const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as any
   if (!user) return null
@@ -239,6 +274,7 @@ export function resetUserPassword(token: string, password: string) {
   db.prepare(
     "UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL, updated = ? WHERE id = ?"
   ).run(pwHash, Date.now(), user.id)
+  bumpTokenVersion(user.id)
   return rowToUser(user)
 }
 

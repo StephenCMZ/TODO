@@ -5,9 +5,10 @@ interface Props {
   user: User
   onLogout: () => void
   onAdmin: () => void
+  onSettings: () => void
 }
 
-export function UserMenu({ user, onLogout, onAdmin }: Props) {
+export function UserMenu({ user, onLogout, onAdmin, onSettings }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -38,6 +39,13 @@ export function UserMenu({ user, onLogout, onAdmin }: Props) {
             <br />
             <span className={user.role !== "user" ? "text-[var(--accent)]" : ""}>{user.role === "admin" ? "管理员" : user.role === "project_admin" ? "项目管理员" : "普通用户"}</span>
           </div>
+          <button
+            onClick={() => { setOpen(false); onSettings() }}
+            className="flex w-full cursor-pointer items-center px-3 py-2 text-left text-[0.75rem] transition-all hover:bg-[var(--border-light)]"
+            style={{ color: "var(--ink)" }}
+          >
+            用户设置
+          </button>
           {user.role === "admin" && (
             <button
               onClick={() => { setOpen(false); onAdmin() }}

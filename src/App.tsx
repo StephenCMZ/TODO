@@ -10,6 +10,7 @@ import { RegisterPage } from "./components/RegisterPage"
 import { ForgotPasswordPage } from "./components/ForgotPasswordPage"
 import { ResetPasswordPage } from "./components/ResetPasswordPage"
 import { AdminPanel } from "./components/AdminPanel"
+import { UserSettingsPage } from "./components/UserSettingsPage"
 import { ProjectBar } from "./components/ProjectBar"
 import { AddTodo } from "./components/AddTodo"
 import { FilterBar } from "./components/FilterBar"
@@ -120,7 +121,7 @@ function AppInner() {
   })
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [clearDoneConfirm, setClearDoneConfirm] = useState(false)
-  const [page, setPage] = useState<"app" | "admin">("app")
+  const [page, setPage] = useState<"app" | "admin" | "settings">("app")
 
   useEffect(() => {
     if (loading) return
@@ -272,7 +273,7 @@ function AppInner() {
 
   const headerChildren = (
     <>
-      {authUser && <UserMenu user={authUser} onLogout={logout} onAdmin={() => setPage("admin")} />}
+      {authUser && <UserMenu user={authUser} onLogout={logout} onAdmin={() => setPage("admin")} onSettings={() => setPage("settings")} />}
       <ThemeToggle theme={theme} onToggle={toggleTheme} />
     </>
   )
@@ -292,6 +293,10 @@ function AppInner() {
 
   if (page === "admin") {
     return <AdminPanel onBack={() => setPage("app")} />
+  }
+
+  if (page === "settings") {
+    return <UserSettingsPage onBack={() => setPage("app")} />
   }
 
   return (
