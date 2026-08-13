@@ -6,6 +6,11 @@ import { isEncryptionEnabled, encrypt, decrypt } from "./encryption"
 const ENC_PREFIX = "enc:v1:"
 const MAX_DETAILS_LENGTH = 500
 
+// Strip the IPv4-mapped IPv6 prefix so "::ffff:172.21.0.1" displays as "172.21.0.1"
+function normalizeIp(ip: string): string {
+  return ip.startsWith("::ffff:") ? ip.slice(7) : ip
+}
+
 /**
  * Log an audit entry for the current request.
  * Falls back to "system" when no authenticated user is present (e.g. register/login).
@@ -16,7 +21,7 @@ export function audit(req: Request, action: string, details?: string | null, use
     user?.username ?? req.user?.username ?? "system",
     action,
     details ?? null,
-    req.ip || ""
+    normalizeIp(req.ip || "")
   )
 }
 
@@ -55,7 +60,7 @@ function rowToAuditLog(row: any) {
     username: row.username,
     action: row.action,
     details,
-    ip: row.ip,
+    ip: normalizeIp(row.ip),
     created: row.created,
   }
 }

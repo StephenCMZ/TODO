@@ -197,6 +197,7 @@ DB_PASSWORD=your-secret-password docker compose up -d
 | `DB_PATH`     | 数据库文件路径         | `./data/todo.db` |
 | `DB_PASSWORD` | 数据库加密密码（可选） | 空（不加密）     |
 | `JWT_SECRET`  | JWT 签名密钥           | 内置开发密钥     |
+| `TRUST_PROXY` | 反向代理层数（nginx 等场景取真实客户端 IP） | 空（不信任代理） |
 
 > **安全提示**：生产环境请务必设置 `JWT_SECRET` 和 `DB_PASSWORD` 环境变量。
 

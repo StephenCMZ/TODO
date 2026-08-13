@@ -2,10 +2,11 @@ services:
   todo:
     build: .
     ports:
-      - "3001:3001"
+      - '3001:3001'
     environment:
       - DB_PATH=/app/data/todo.db
       - DB_PASSWORD=${DB_PASSWORD:-}
       - PORT=3001
+      - TRUST_PROXY=1
     volumes:
       - ./data:/app/data
